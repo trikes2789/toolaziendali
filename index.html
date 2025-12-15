@@ -22,11 +22,17 @@
             padding-bottom: 10px; 
         }
         .blocco-programma { 
-            border: 1px solid #e0e0e0; 
+            border: 2px dashed #95a5a6; /* Bordo cambiato per Drag & Drop */
             padding: 20px; 
             margin-top: 20px; 
             background-color: #ffffff;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center; /* Centra il contenuto per la zona drop */
+        }
+        /* Stile quando il file è sopra l'area */
+        .blocco-programma.dragover {
+            border-color: #3498db;
+            background-color: #ecf0f1;
         }
         input[type="file"] {
             display: none; 
@@ -73,9 +79,9 @@
     <h1>📊 Area Lavoro Web - Finalmente un posto dove le cose funzionano.</h1>
     <p>Qui puoi eseguire i tuoi script senza la benedizione dell'IT. I dati non lasciano il tuo browser.</p>
 
-    <div class="blocco-programma">
+    <div class="blocco-programma" id="dropZone">
         <h2>Programma 1: Elaborazione File Excel (Filtro Duplicati Barcode)</h2>
-        <p>Carica il file Excel (.xlsx/.csv). La pagina filtrerà solo i record con **Barcode Match duplicati** e li ordinerà. Tutto il resto verrà scartato.</p>
+        <p>**TRASCINA QUI IL FILE** (.xlsx/.csv) o usa il pulsante. Il filtro farà il lavoro sporco.</p>
         
         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
         
@@ -98,15 +104,69 @@
             return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
         }
 
-        // FIX: Aspetta che l'intera pagina sia caricata prima di eseguire lo script
+        // --- FUNZIONI DI INIZIALIZZAZIONE E DRAG & DROP ---
         document.addEventListener('DOMContentLoaded', function() {
             const excelFileInput = document.getElementById('excelFile');
+            const dropZone = document.getElementById('dropZone');
+
             if (excelFileInput) {
+                // Collega l'evento di cambio file al pulsante standard
                 excelFileInput.addEventListener('change', handleFile, false);
             }
+
+            // Logica Drag & Drop
+            if (dropZone) {
+                // Impedisce al browser di aprire il file trascinato
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, preventDefaults, false);
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                // Evidenzia la zona quando un file è sopra
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+                });
+
+                // Gestisce il rilascio del file
+                dropZone.addEventListener('drop', handleDrop, false);
+            }
         });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         
-        // --- FUNZIONI DI ELABORAZIONE ---
+        function handleDrop(e) {
+            let dt = e.dataTransfer;
+            let file = dt.files[0];
+
+            if (file) {
+                 // Deve essere un file che possiamo elaborare
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv')) {
+                    // Simula l'evento di change sul campo input nascosto
+                    // Creiamo un DataTransfer fittizio per emulare il comportamento del campo file
+                    let dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    
+                    const excelFileInput = document.getElementById('excelFile');
+                    excelFileInput.files = dataTransfer.files;
+
+                    // Chiamiamo handleFile direttamente con un oggetto che imita l'evento change
+                    handleFile({ target: excelFileInput, dataTransfer: dt });
+
+                } else {
+                    document.getElementById('stato').style.color = '#c0392b';
+                    document.getElementById('stato').innerText = 'Tipo di file non supportato. Trascina un .xlsx o .csv.';
+                }
+            }
+        }
+        
+        // --- FUNZIONI DI ELABORAZIONE (RIMANGONO INVARIATE) ---
 
         function handleFile(e) {
             // Nascondi il bottone di export all'inizio di ogni caricamento
@@ -289,7 +349,7 @@
             reader.readAsArrayBuffer(file);
         }
         
-        // FUNZIONE EXPORT AGGIORNATA CON LARGHEZZA COLONNE
+        // FUNZIONE EXPORT CON LARGHEZZA COLONNE
         function esportaExcel() {
             if (datiProntiPerExport.length === 0) {
                 alert("Nessun dato da esportare! Carica prima un file.");
@@ -299,15 +359,14 @@
             const ws = XLSX.utils.json_to_sheet(datiProntiPerExport);
 
             // Definisce la larghezza delle colonne in pixel (wpx)
-            // L'ordine è lo stesso delle colonneDaMantenerePulite
             const columnWidths = [
-                { wpx: 120 }, // Ora Transito (Index 0)
-                { wpx: 200 }, // Errore (Index 1) <-- 200px richiesti
-                { wpx: 200 }, // Barcode Match (Index 2) <-- 200px richiesti
+                { wpx: 60 }, // Ora Transito (Index 0)
+                { wpx: 140 }, // Errore (Index 1) 
+                { wpx: 140 }, // Barcode Match (Index 2)
                 { wpx: 100 }, // Lunghezza Collo cm (Index 3)
                 { wpx: 100 }, // Larghezza Collo cm (Index 4)
                 { wpx: 100 }, // Altezza Collo cm (Index 5)
-                { wpx: 120 }  // Peso Collo Kg (Index 6)
+                { wpx: 80 }  // Peso Collo Kg (Index 6)
             ];
 
             // Applica la larghezza delle colonne al foglio di lavoro
