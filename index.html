@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Report Aziendali Standard V.3</title>
     
+    <link rel="icon" type="image/x-icon" href="./favicon.ico"> 
+
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <style>
@@ -102,7 +104,6 @@
 
             reader.onload = function(e) {
                 try {
-                    // Controlla se XLSX è disponibile (verifica il caricamento della libreria)
                     if (typeof XLSX === 'undefined') {
                         throw new Error("Libreria XLSX (SheetJS) non caricata. Controlla la console per errori di rete (404).");
                     }
@@ -122,4 +123,9 @@
                     let risultatiFinali = [];
 
                     const colonneDaMantenere = [
-                        'Ora Trans
+                        'Ora Transito', 
+                        'Errore', 
+                        'Barcode Match', 
+                        'Lunghezza Collo cm', 
+                        'Larghezza Collo cm', 
+                        'Altezza Collo cm
