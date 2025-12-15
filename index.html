@@ -189,6 +189,7 @@
                         const nuovaRiga = {};
                         colonneDaMantenerePulite.forEach(chiavePulita => {
                              const valore = riga[chiavePulita] !== undefined ? riga[chiavePulita] : ''; 
+                             // Recupera il nome originale dall'headerMap per l'output (tabella e export)
                              const chiaveOriginale = headerMap[chiavePulita] || chiavePulita; 
                              nuovaRiga[chiaveOriginale] = valore;
                         });
@@ -288,7 +289,7 @@
             reader.readAsArrayBuffer(file);
         }
         
-        // FUNZIONE EXPORT
+        // FUNZIONE EXPORT AGGIORNATA CON LARGHEZZA COLONNE
         function esportaExcel() {
             if (datiProntiPerExport.length === 0) {
                 alert("Nessun dato da esportare! Carica prima un file.");
@@ -296,6 +297,22 @@
             }
 
             const ws = XLSX.utils.json_to_sheet(datiProntiPerExport);
+
+            // Definisce la larghezza delle colonne in pixel (wpx)
+            // L'ordine è lo stesso delle colonneDaMantenerePulite
+            const columnWidths = [
+                { wpx: 120 }, // Ora Transito (Index 0)
+                { wpx: 200 }, // Errore (Index 1) <-- 200px richiesti
+                { wpx: 200 }, // Barcode Match (Index 2) <-- 200px richiesti
+                { wpx: 100 }, // Lunghezza Collo cm (Index 3)
+                { wpx: 100 }, // Larghezza Collo cm (Index 4)
+                { wpx: 100 }, // Altezza Collo cm (Index 5)
+                { wpx: 120 }  // Peso Collo Kg (Index 6)
+            ];
+
+            // Applica la larghezza delle colonne al foglio di lavoro
+            ws['!cols'] = columnWidths;
+
             const wb = XLSX.utils.book_new();
             
             XLSX.utils.book_append_sheet(wb, ws, "Duplicati Filtrati");
