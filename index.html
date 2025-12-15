@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Report Aziendali Standard V.3</title>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <style>
         body { 
@@ -27,7 +27,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         input[type="file"] {
-            display: none; /* Nasconde il brutto campo di input file */
+            display: none; 
         }
         .button-carica {
             padding: 10px 15px;
@@ -62,7 +62,7 @@
         }
         /* Stile per i duplicati richiesti (colore arancione) */
         .duplicate-highlight {
-            background-color: #ffcc99 !important; /* Arancione per i duplicati */
+            background-color: #ffcc99 !important; 
         }
     </style>
 </head>
@@ -82,7 +82,7 @@
         <p id="stato" style="color: #e74c3c;">In attesa di caricamento...</p>
         
         <div id="risultatoElaborazione">
-            </div>
+        </div>
     </div>
 
     <script>
@@ -102,10 +102,24 @@
 
             reader.onload = function(e) {
                 try {
+                    // Controlla se XLSX è disponibile (verifica il caricamento della libreria)
+                    if (typeof XLSX === 'undefined') {
+                        throw new Error("Libreria XLSX (SheetJS) non caricata. Controlla la console per errori di rete (404).");
+                    }
+                    
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
                     
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
                     
-                    // Converte il foglio in un array di
+                    let jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // --- INIZIO DELL'ELABORAZIONE RICHIESTA ---
+                    
+                    let datiFiltrati;
+                    let barcodeCounts = {};
+                    let risultatiFinali = [];
+
+                    const colonneDaMantenere = [
+                        'Ora Trans
