@@ -60,16 +60,20 @@
         #risultatoElaborazione th {
             background-color: #ecf0f1;
         }
+        /* Stile per i duplicati richiesti (colore arancione) */
+        .duplicate-highlight {
+            background-color: #ffcc99 !important; /* Arancione per i duplicati */
+        }
     </style>
 </head>
 <body>
 
     <h1>📊 Area Lavoro Web - Finalmente un posto dove le cose funzionano.</h1>
-    <p>Qui puoi eseguire i tuoi script senza la benedizione dell'IT. Iniziamo con l'elaborazione dei dati.</p>
+    <p>Qui puoi eseguire i tuoi script senza la benedizione dell'IT. I dati non lasciano il tuo browser.</p>
 
     <div class="blocco-programma">
-        <h2>Programma 1: Elaborazione File Excel (.xlsx/.csv)</h2>
-        <p>Carica il file Excel dal tuo PC. L'elaborazione avverrà interamente qui, nel browser. Nessun log, nessun server aziendale coinvolto.</p>
+        <h2>Programma 1: Elaborazione File Excel (Filtro Duplicati Barcode)</h2>
+        <p>Carica il file Excel (.xlsx/.csv). La pagina filtrerà solo i record con **Barcode Match duplicati** e li ordinerà. Tutto il resto verrà scartato.</p>
         
         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
         
@@ -99,68 +103,9 @@
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    // Leggi il workbook
                     const workbook = XLSX.read(data, {type: 'array'});
                     
-                    // Prendi il nome del primo foglio
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
                     
-                    // Converte il foglio in un array di array (raw data)
-                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                    
-                    // Converte il foglio in un array di oggetti (più facile da manipolare)
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    // --- INIZIO DELL'ELABORAZIONE PERSONALIZZATA ---
-                    
-                    let output = `Analisi completata del foglio: <strong>"${sheetName}"</strong>.`;
-                    output += `<br>Totale record trovati: ${jsonData.length}.`;
-                    
-                    // ESEMPIO DI VISUALIZZAZIONE: Mostra le prime 5 righe in una tabella
-                    if (jsonData.length > 0) {
-                        const headers = Object.keys(jsonData[0]);
-                        let tableHTML = '<h3>Anteprima (Prime 5 Righe):</h3><table><thead><tr>';
-                        
-                        // Crea le intestazioni
-                        headers.forEach(h => {
-                            tableHTML += `<th>${h}</th>`;
-                        });
-                        tableHTML += '</tr></thead><tbody>';
-
-                        // Aggiunge le prime 5 righe
-                        for (let i = 0; i < Math.min(5, jsonData.length); i++) {
-                            tableHTML += '<tr>';
-                            headers.forEach(h => {
-                                tableHTML += `<td>${jsonData[i][h] || 'N/D'}</td>`;
-                            });
-                            tableHTML += '</tr>';
-                        }
-                        
-                        tableHTML += '</tbody></table>';
-                        output += tableHTML;
-                    }
-                    
-                    // --- FINE DELL'ELABORAZIONE PERSONALIZZATA ---
-
-                    document.getElementById('stato').style.color = '#27ae60';
-                    document.getElementById('stato').innerText = `File "${file.name}" elaborato con successo! Dati caricati in memoria.`;
-                    document.getElementById('risultatoElaborazione').innerHTML = output;
-
-                } catch (error) {
-                    document.getElementById('stato').style.color = '#c0392b';
-                    document.getElementById('stato').innerText = `Errore durante l'elaborazione del file: ${error.message}`;
-                    console.error("Errore di elaborazione:", error);
-                }
-            };
-
-            reader.onerror = function(e) {
-                document.getElementById('stato').style.color = '#c0392b';
-                document.getElementById('stato').innerText = 'Errore di lettura del file.';
-            };
-
-            reader.readAsArrayBuffer(file);
-        }
-    </script>
-</body>
-</html>
+                    // Converte il foglio in un array di
