@@ -93,14 +93,12 @@
         // Variabile globale per conservare i dati filtrati per la funzione di esportazione
         let datiProntiPerExport = [];
 
-        // FIX 3: Aspetta che l'intera pagina sia caricata prima di eseguire lo script
+        // FIX: Aspetta che l'intera pagina sia caricata prima di eseguire lo script
         document.addEventListener('DOMContentLoaded', function() {
-            
             const excelFileInput = document.getElementById('excelFile');
             if (excelFileInput) {
                 excelFileInput.addEventListener('change', handleFile, false);
             }
-
         });
         
         // --- FUNZIONI DI ELABORAZIONE ---
@@ -132,46 +130,86 @@
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
                     
-                    let jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    // LEGGE I DATI IN FORMA DI ARRAY DI ARRAY, NON DI JSON (per gestire le intestazioni)
+                    let jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                        header: 1, 
+                        raw: false
+                    });
+
+                    // Verifica se ci sono dati
+                    if (!jsonData || jsonData.length < 2) {
+                        throw new Error("File vuoto o con sole intestazioni.");
+                    }
+
+                    // Intestazioni (Prima riga del file) e Dati (righe successive)
+                    const headers = jsonData[0];
+                    const dataRows = jsonData.slice(1);
+
+                    // --- MAPPATURA E PULIZIA DELLE CHIAVI (IL FIX ANTI-BUROCRAZIA) ---
+                    let headerMap = {};
+                    let cleanedHeaders = headers.map(header => {
+                        const originalHeader = String(header);
+                        // Rimuovi spazi e metti in minuscolo per la ricerca interna
+                        const cleaned = originalHeader.replace(/\s/g, '').toLowerCase(); 
+                        headerMap[cleaned] = originalHeader; // Associa la chiave pulita alla chiave originale
+                        return cleaned;
+                    });
                     
-                    let datiFiltrati;
+                    // Ricostruisci il JSON con le chiavi pulite (più facili da cercare)
+                    let datiPuliti = dataRows.map(row => {
+                        let newRow = {};
+                        row.forEach((value, index) => {
+                            // Usa la chiave pulita come chiave interna per la ricerca
+                            newRow[cleanedHeaders[index]] = value;
+                        });
+                        return newRow;
+                    });
+
+                    // Colonne da mantenere definite in formato pulito
+                    const colonneDaMantenerePulite = [
+                        'oratransito', 
+                        'errore', 
+                        'barcodematch', 
+                        'lunghezzacollocm', 
+                        'larghezzacollocm', 
+                        'altezzacollocm', 
+                        'pesocollokg'
+                    ];
+                    
                     let barcodeCounts = {};
                     let risultatiFinali = [];
 
-                    const colonneDaMantenere = [
-                        'Ora Transito', 
-                        'Errore', 
-                        'Barcode Match', 
-                        'Lunghezza Collo cm', 
-                        'Larghezza Collo cm', 
-                        'Altezza Collo cm', 
-                        'Peso Collo Kg'
-                    ];
-
-                    // 1. Mantenere solo le colonne specificate
-                    datiFiltrati = jsonData.map(riga => {
+                    // 1. Mantenere solo le colonne specificate e ripristinare il nome originale per l'export
+                    let datiFiltrati = datiPuliti.map(riga => {
                         const nuovaRiga = {};
-                        colonneDaMantenere.forEach(chiave => {
-                             nuovaRiga[chiave] = riga[chiave] !== undefined ? riga[chiave] : ''; 
+                        colonneDaMantenerePulite.forEach(chiavePulita => {
+                             const valore = riga[chiavePulita] !== undefined ? riga[chiavePulita] : ''; 
+                             // Recupera il nome originale dall'headerMap per l'output (tabella e export)
+                             const chiaveOriginale = headerMap[chiavePulita] || chiavePulita; 
+                             nuovaRiga[chiaveOriginale] = valore;
                         });
                         return nuovaRiga;
                     });
                     
-                    // 2. Identificazione Duplicati
-                    datiFiltrati.forEach(riga => {
-                        const barcode = riga['Barcode Match'];
+                    // 2. Identificazione Duplicati (usa la chiave pulita 'barcodematch')
+                    datiPuliti.forEach(riga => {
+                        const barcode = riga['barcodematch']; 
                         if (barcode) {
                             barcodeCounts[barcode] = (barcodeCounts[barcode] || 0) + 1;
                         }
                     });
 
-                    // 3. Mantenere solo i Duplicati
+                    // 3. Mantenere solo i Duplicati 
                     risultatiFinali = datiFiltrati.filter(riga => {
-                        const barcode = riga['Barcode Match'];
-                        return barcode && barcodeCounts[barcode] > 1; 
-                    });
+                        // Per il filtro, usiamo il valore del 'Barcode Match' originale
+                        const barcodeOriginale = riga['Barcode Match']; 
+                        // Ma cerchiamo il conteggio usando la sua versione pulita
+                        const barcodePulito = String(barcodeOriginale).replace(/\s/g, '').toLowerCase();
 
-                    // 4. Mettere in ordine alfabetico
+                        return barcodeOriginale && barcodeCounts[barcodePulito] > 1; 
+                    });
+                    
+                    // 4. Mettere in ordine alfabetico (sul nome originale)
                     risultatiFinali.sort((a, b) => {
                         const barcodeA = a['Barcode Match'] || ''; 
                         const barcodeB = b['Barcode Match'] || '';
@@ -185,11 +223,11 @@
                     // --- VISUALIZZAZIONE ---
                     
                     let output = `Analisi completata del foglio: <strong>"${sheetName}"</strong>.`;
-                    output += `<br>Totale record iniziali: ${jsonData.length}.`;
+                    output += `<br>Totale record iniziali: ${dataRows.length}.`;
                     output += `<br><strong>Risultati Finali:</strong> ${risultatiFinali.length} righe filtrate (solo duplicati).`;
                     
                     if (risultatiFinali.length > 0) {
-                        const headers = colonneDaMantenere; 
+                        const headers = Object.keys(risultatiFinali[0]); // Usa le chiavi del primo oggetto (nomi originali)
                         let tableHTML = '<h3>Risultati Filtro Duplicati Ordinati:</h3><table><thead><tr>';
                         
                         headers.forEach(h => {
@@ -226,7 +264,7 @@
 
                 } catch (error) {
                     document.getElementById('stato').style.color = '#c0392b';
-                    document.getElementById('stato').innerText = `Errore di elaborazione. Controlla che le intestazioni delle colonne siano ESATTE. Errore: ${error.message}`;
+                    document.getElementById('stato').innerText = `Errore di elaborazione. Controlla che il file sia .xlsx o .csv. Errore: ${error.message}`;
                     console.error("Errore di elaborazione:", error);
                 }
             };
