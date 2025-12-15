@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Report Aziendali Standard V.3 - DIAGNOSTICA</title>
+    <title>Dashboard Report Aziendali Standard V.3</title>
     
     <link rel="icon" type="image/x-icon" href="/toolaziendali/favicon.ico"> 
 
@@ -70,18 +70,18 @@
 </head>
 <body>
 
-    <h1>📊 Area Lavoro Web - DIAGNOSTICA BARCODE</h1>
-    <p>ATTENZIONE: Questa è una modalità diagnostica. Carica il file per esportare tutti i valori della colonna 'Barcode Match' e i loro conteggi.</p>
+    <h1>📊 Area Lavoro Web - Finalmente un posto dove le cose funzionano.</h1>
+    <p>Qui puoi eseguire i tuoi script senza la benedizione dell'IT. I dati non lasciano il tuo browser.</p>
 
     <div class="blocco-programma">
         <h2>Programma 1: Elaborazione File Excel (Filtro Duplicati Barcode)</h2>
-        <p>Carica il file. Esporteremo un report con **tutti i barcode** e il loro conteggio (Count). Se un barcode è un duplicato, vedrai Count > 1. **Il filtro duplicati è TEMPORANEAMENTE DISABILITATO.**</p>
+        <p>Carica il file Excel (.xlsx/.csv). La pagina filtrerà solo i record con **Barcode Match duplicati** e li ordinerà. Tutto il resto verrà scartato.</p>
         
         <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
         
         <div class="button-carica" onclick="document.getElementById('excelFile').click()">Scegli e Carica File</div>
         
-        <div class="button-carica" id="exportButton" onclick="esportaExcel()" style="background-color: #27ae60; margin-left: 10px; display: none;">Esporta Report Diagnostico (Excel)</div>
+        <div class="button-carica" id="exportButton" onclick="esportaExcel()" style="background-color: #27ae60; margin-left: 10px; display: none;">Esporta Risultati (Excel)</div>
         
         <p id="stato" style="color: #e74c3c;">In attesa di caricamento...</p>
         
@@ -109,6 +109,7 @@
         // --- FUNZIONI DI ELABORAZIONE ---
 
         function handleFile(e) {
+            // Nascondi il bottone di export all'inizio di ogni caricamento
             document.getElementById('exportButton').style.display = 'none';
             
             const file = e.target.files[0];
@@ -134,15 +135,18 @@
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
                     
+                    // LEGGE I DATI IN FORMA DI ARRAY DI ARRAY, NON DI JSON 
                     let jsonData = XLSX.utils.sheet_to_json(worksheet, {
                         header: 1, 
                         raw: false
                     });
 
+                    // Verifica se ci sono dati
                     if (!jsonData || jsonData.length < 2) {
                         throw new Error("File vuoto o con sole intestazioni. Impossibile elaborare.");
                     }
 
+                    // Intestazioni (Prima riga del file) e Dati (righe successive)
                     const headers = jsonData[0];
                     const dataRows = jsonData.slice(1);
 
@@ -150,87 +154,107 @@
                     let headerMap = {};
                     let cleanedHeaders = headers.map(header => {
                         const originalHeader = String(header);
+                        // Rimuovi spazi e metti in minuscolo per la ricerca interna
                         const cleaned = cleanValue(originalHeader); 
-                        headerMap[cleaned] = originalHeader; 
+                        headerMap[cleaned] = originalHeader; // Associa la chiave pulita alla chiave originale
                         return cleaned;
                     });
                     
+                    // Ricostruisci il JSON con le chiavi pulite
                     let datiPuliti = dataRows.map(row => {
                         let newRow = {};
                         row.forEach((value, index) => {
+                            // Usa la chiave pulita come chiave interna per la ricerca
                             newRow[cleanedHeaders[index]] = value;
                         });
                         return newRow;
                     });
 
-                    // Chiave pulita per il barcode
-                    const barcodeKey = 'barcodematch';
+                    // Colonne da mantenere definite in formato pulito
+                    const colonneDaMantenerePulite = [
+                        'oratransito', 
+                        'errore', 
+                        'barcodematch', // Chiave interna per il barcode
+                        'lunghezzacollocm', 
+                        'larghezzacollocm', 
+                        'altezzacollocm', 
+                        'pesocollokg'
+                    ];
                     
                     let barcodeCounts = {};
-                    let risultatiDiagnostici = []; // Nuovo set per la diagnostica
+                    let risultatiFinali = [];
 
-                    // 1. IDENTIFICAZIONE DUPLICATI (Pulizia aggressiva del VALORE del barcode)
-                    // Conta tutti i barcode puliti
+                    // 1. Mantenere solo le colonne specificate e ripristinare il nome originale per l'export
+                    let datiFiltrati = datiPuliti.map(riga => {
+                        const nuovaRiga = {};
+                        colonneDaMantenerePulite.forEach(chiavePulita => {
+                             const valore = riga[chiavePulita] !== undefined ? riga[chiavePulita] : ''; 
+                             const chiaveOriginale = headerMap[chiavePulita] || chiavePulita; 
+                             nuovaRiga[chiaveOriginale] = valore;
+                        });
+                        return nuovaRiga;
+                    });
+                    
+                    // 2. IDENTIFICAZIONE DUPLICATI (Pulizia aggressiva del VALORE del barcode)
                     datiPuliti.forEach(riga => {
-                        const barcodeValue = riga[barcodeKey]; 
+                        // Prende il valore dalla chiave interna pulita
+                        const barcodeValue = riga['barcodematch']; 
                         
                         if (barcodeValue) {
+                            // Pulizia aggressiva del valore prima del conteggio
                             const cleanedBarcode = cleanValue(barcodeValue); 
+
                             barcodeCounts[cleanedBarcode] = (barcodeCounts[cleanedBarcode] || 0) + 1;
                         }
                     });
 
-                    // 2. CREAZIONE DEL REPORT DIAGNOSTICO
-                    let processedBarcodes = new Set();
-                    
-                    datiPuliti.forEach(riga => {
-                        const barcodeValue = riga[barcodeKey];
+                    // 3. Mantenere solo i Duplicati (usa i conteggi)
+                    risultatiFinali = datiFiltrati.filter(riga => {
+                        // Cerchiamo il Barcode Match nel risultato finale (nome colonna originale)
+                        const barcodeOriginale = riga['Barcode Match']; 
                         
-                        if (barcodeValue) {
-                            const cleanedBarcode = cleanValue(barcodeValue);
-                            
-                            // Se non l'abbiamo ancora processato (evita di listare 3825 righe)
-                            if (!processedBarcodes.has(cleanedBarcode)) {
-                                risultatiDiagnostici.push({
-                                    'Barcode Originale': riga[headerMap[barcodeKey]], // Nome colonna originale
-                                    'Barcode Pulito (Codice)': cleanedBarcode,
-                                    'Conteggio (Count)': barcodeCounts[cleanedBarcode],
-                                    'È Duplicato': barcodeCounts[cleanedBarcode] > 1 ? 'SÌ' : 'NO'
-                                });
-                                processedBarcodes.add(cleanedBarcode);
-                            }
-                        }
-                    });
+                        // Pulizia aggressiva del valore per la ricerca nel conteggio
+                        const barcodePulitoPerRicerca = cleanValue(barcodeOriginale);
 
-                    // Ordinamento del report
-                    risultatiDiagnostici.sort((a, b) => {
-                        return String(a['Barcode Originale']).localeCompare(String(b['Barcode Originale']));
+                        // Filtra solo se il conteggio è > 1
+                        return barcodeOriginale && barcodeCounts[barcodePulitoPerRicerca] > 1; 
                     });
                     
-                    // SALVA I DATI DIAGNOSTICI PER L'ESPORTAZIONE
-                    datiProntiPerExport = risultatiDiagnostici; 
+                    // 4. Mettere in ordine alfabetico (sul nome originale)
+                    risultatiFinali.sort((a, b) => {
+                        const barcodeA = a['Barcode Match'] || ''; 
+                        const barcodeB = b['Barcode Match'] || '';
+                        
+                        return String(barcodeA).localeCompare(String(barcodeB));
+                    });
+                    
+                    // SALVA I DATI FILTRATI PER L'ESPORTAZIONE
+                    datiProntiPerExport = risultatiFinali; 
 
                     // --- VISUALIZZAZIONE ---
                     
-                    let output = `Diagnostica completata del foglio: <strong>"${sheetName}"</strong>.`;
+                    let output = `Analisi completata del foglio: <strong>"${sheetName}"</strong>.`;
                     output += `<br>Totale record iniziali: ${dataRows.length}.`;
-                    output += `<br><strong>Barcode Unici Trovati:</strong> ${risultatiDiagnostici.length} tipi di barcode diversi.`;
+                    output += `<br><strong>Risultati Finali:</strong> ${risultatiFinali.length} righe filtrate (solo duplicati).`;
                     
-                    if (risultatiDiagnostici.length > 0) {
-                        const headers = Object.keys(risultatiDiagnostici[0]); 
-                        let tableHTML = '<h3>Report Conteggi Barcode (Prime 20 righe):</h3><table><thead><tr>';
+                    if (risultatiFinali.length > 0) {
+                        const headers = Object.keys(risultatiFinali[0]); // Usa le chiavi del primo oggetto (nomi originali)
+                        let tableHTML = '<h3>Risultati Filtro Duplicati Ordinati:</h3><table><thead><tr>';
                         
                         headers.forEach(h => {
                             tableHTML += `<th>${h}</th>`;
                         });
                         tableHTML += '</tr></thead><tbody>';
 
-                        // Mostra solo le prime 20 righe per non appesantire la pagina
-                        risultatiDiagnostici.slice(0, 20).forEach(riga => {
+                        risultatiFinali.forEach(riga => {
                             tableHTML += '<tr>';
                             headers.forEach(h => {
                                 let cellContent = riga[h] || '';
-                                let className = (h === 'È Duplicato' && cellContent === 'SÌ') ? 'duplicate-highlight' : '';
+                                let className = '';
+                                
+                                if (h === 'Barcode Match') {
+                                     className = 'duplicate-highlight'; 
+                                }
                                 tableHTML += `<td class="${className}">${cellContent}</td>`;
                             });
                             tableHTML += '</tr>';
@@ -240,19 +264,18 @@
                         output += tableHTML;
                         
                         document.getElementById('exportButton').style.display = 'inline-block';
-                        output += `<p style="margin-top: 10px;">Clicca su **Esporta Report Diagnostico (Excel)** per vedere tutti i ${risultatiDiagnostici.length} barcode unici e i loro conteggi.</p>`;
 
                     } else {
-                        output += "<p>Nessun valore valido trovato nella colonna Barcode Match.</p>";
+                        output += "<p>Non sono stati trovati duplicati (o quasi-duplicati) nella colonna 'Barcode Match'. Nessuna riga da visualizzare.</p>";
                     }
 
                     document.getElementById('stato').style.color = '#27ae60';
-                    document.getElementById('stato').innerText = `File "${file.name}" elaborato con successo! Pronto per l'export diagnostico.`;
+                    document.getElementById('stato').innerText = `File "${file.name}" elaborato con successo!`;
                     document.getElementById('risultatoElaborazione').innerHTML = output;
 
                 } catch (error) {
                     document.getElementById('stato').style.color = '#c0392b';
-                    document.getElementById('stato').innerText = `Errore grave di elaborazione. Errore: ${error.message}`;
+                    document.getElementById('stato').innerText = `Errore di elaborazione. Controlla il formato del file o le intestazioni. Errore: ${error.message}`;
                     console.error("Errore di elaborazione:", error);
                 }
             };
@@ -265,7 +288,7 @@
             reader.readAsArrayBuffer(file);
         }
         
-        // FUNZIONE EXPORT (Aggiornata per la diagnostica)
+        // FUNZIONE EXPORT
         function esportaExcel() {
             if (datiProntiPerExport.length === 0) {
                 alert("Nessun dato da esportare! Carica prima un file.");
@@ -275,12 +298,12 @@
             const ws = XLSX.utils.json_to_sheet(datiProntiPerExport);
             const wb = XLSX.utils.book_new();
             
-            XLSX.utils.book_append_sheet(wb, ws, "Report Diagnostico Barcode");
+            XLSX.utils.book_append_sheet(wb, ws, "Duplicati Filtrati");
 
-            XLSX.writeFile(wb, "Diagnostica_Barcode_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+            XLSX.writeFile(wb, "Report_Duplicati_Filtrati_" + new Date().toISOString().slice(0, 10) + ".xlsx");
             
             document.getElementById('stato').style.color = '#3498db';
-            document.getElementById('stato').innerText = 'Report Diagnostico generato e download avviato!';
+            document.getElementById('stato').innerText = 'File Excel generato e download avviato!';
         }
     </script>
 </body>
