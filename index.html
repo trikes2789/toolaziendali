@@ -171,4 +171,91 @@
                         return barcode && barcodeCounts[barcode] > 1; 
                     });
 
-                    //
+                    // 4. Mettere in ordine alfabetico
+                    risultatiFinali.sort((a, b) => {
+                        const barcodeA = a['Barcode Match'] || ''; 
+                        const barcodeB = b['Barcode Match'] || '';
+                        
+                        return String(barcodeA).localeCompare(String(barcodeB));
+                    });
+                    
+                    // SALVA I DATI FILTRATI PER L'ESPORTAZIONE
+                    datiProntiPerExport = risultatiFinali; 
+
+                    // --- VISUALIZZAZIONE ---
+                    
+                    let output = `Analisi completata del foglio: <strong>"${sheetName}"</strong>.`;
+                    output += `<br>Totale record iniziali: ${jsonData.length}.`;
+                    output += `<br><strong>Risultati Finali:</strong> ${risultatiFinali.length} righe filtrate (solo duplicati).`;
+                    
+                    if (risultatiFinali.length > 0) {
+                        const headers = colonneDaMantenere; 
+                        let tableHTML = '<h3>Risultati Filtro Duplicati Ordinati:</h3><table><thead><tr>';
+                        
+                        headers.forEach(h => {
+                            tableHTML += `<th>${h}</th>`;
+                        });
+                        tableHTML += '</tr></thead><tbody>';
+
+                        risultatiFinali.forEach(riga => {
+                            tableHTML += '<tr>';
+                            headers.forEach(h => {
+                                let cellContent = riga[h] || '';
+                                let className = '';
+                                
+                                if (h === 'Barcode Match') {
+                                     className = 'duplicate-highlight'; 
+                                }
+                                tableHTML += `<td class="${className}">${cellContent}</td>`;
+                            });
+                            tableHTML += '</tr>';
+                        });
+                        
+                        tableHTML += '</tbody></table>';
+                        output += tableHTML;
+                        
+                        document.getElementById('exportButton').style.display = 'inline-block';
+
+                    } else {
+                        output += "<p>Non sono stati trovati duplicati nella colonna 'Barcode Match'. Nessuna riga da visualizzare.</p>";
+                    }
+
+                    document.getElementById('stato').style.color = '#27ae60';
+                    document.getElementById('stato').innerText = `File "${file.name}" elaborato con successo!`;
+                    document.getElementById('risultatoElaborazione').innerHTML = output;
+
+                } catch (error) {
+                    document.getElementById('stato').style.color = '#c0392b';
+                    document.getElementById('stato').innerText = `Errore di elaborazione. Controlla che le intestazioni delle colonne siano ESATTE. Errore: ${error.message}`;
+                    console.error("Errore di elaborazione:", error);
+                }
+            };
+
+            reader.onerror = function(e) {
+                document.getElementById('stato').style.color = '#c0392b';
+                document.getElementById('stato').innerText = 'Errore di lettura del file.';
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // FUNZIONE EXPORT
+        function esportaExcel() {
+            if (datiProntiPerExport.length === 0) {
+                alert("Nessun dato da esportare! Carica prima un file.");
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(datiProntiPerExport);
+            const wb = XLSX.utils.book_new();
+            
+            XLSX.utils.book_append_sheet(wb, ws, "Duplicati Filtrati");
+
+            XLSX.writeFile(wb, "Report_Duplicati_Filtrati_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+            
+            document.getElementById('stato').style.color = '#3498db';
+            document.getElementById('stato').innerText = 'File Excel generato e download avviato!';
+        }
+    </script>
+</body>
+</html>
