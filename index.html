@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Report Aziendali Standard V.3</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 25px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #bdc3c7; padding-bottom: 10px; }
+        .blocco-programma { 
+            border: 1px solid #e0e0e0; 
+            padding: 20px; 
+            margin-top: 20px; 
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <h1>📊 Area Lavoro Web - Funziona sempre, stranamente.</h1>
+    <p>Qui puoi eseguire i tuoi script senza la benedizione dell'IT. Iniziamo con un test.</p>
+
+    <div class="blocco-programma">
+        <h2>Programma 1: Verifica JavaScript (Anti-Blocco)</h2>
+        <p>Clicca il bottone per eseguire un calcolo semplice nel tuo browser. Se funziona, la libertà è tua.</p>
+        <button onclick="eseguiTest()">Esegui Controllo Funzioni</button>
+        <p id="risultato" style="margin-top: 15px; font-weight: bold;"></p>
+    </div>
+
+    <script>
+        function eseguiTest() {
+            // Un po' di sano e inutile calcolo per dimostrare che JS è attivo.
+            let a = 42;
+            let b = 13;
+            let risultato = a + b;
+            
+            document.getElementById('risultato').innerText = 
+                'Risultato del calcolo (' + a + ' + ' + b + '): ' + risultato + '. Funziona come previsto. Pulisci la cache se non vedi aggiornamenti.';
+        }
+    </script>
+
+</body>
+</html>
